@@ -21,7 +21,9 @@ flags.DEFINE_integer("cep", 10, "Epoch to train for classification")
 
 flags.DEFINE_float("lr", 1e-4, "Learning rate of for optimizer")
 flags.DEFINE_float("alpha", 2, "Balancing hyperparameter of cls_loss")
-flags.DEFINE_float("beta", 1, "Balancing hyperparameter of loc_loss")
+flags.DEFINE_float("beta", 1, "Balancing hyperparameter of loc_loss_gt")
+flags.DEFINE_float("gamma", 1, "Balancing hyperparameter of loc_loss_t1")
+
 
 flags.DEFINE_bool("has", False, "hide patch")
 
@@ -91,8 +93,6 @@ with tf.Session(config=config) as sess:
     # Model
     if FLAGS.model == 'alexnet':
         model = ALEXNET(config=FLAGS, inputs=train_inputs)
-    elif FLAGS.model == 'alexnetmini':
-        model = ALEXNETMini(config=FLAGS, inputs=train_inputs)
 
     elif FLAGS.model == 'googlenet':
         model = GOOGLENET(config=FLAGS, inputs=train_inputs)

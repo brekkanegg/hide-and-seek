@@ -44,18 +44,3 @@ def get_bbox_from_cam(cam, threshold=0.2):
 
 
 
-
-    # _bbox = []
-    # for bmx, bmy in zip(bm_x, bm_y):
-    #     min_px, min_py = tf.reduce_min(tf.where(bmx)[1]), tf.reduce_min(tf.where(bmy)[1])
-    #     max_px, max_py = tf.reduce_max(tf.where(bmx)[1]), tf.reduce_max(tf.where(bmy)[1])
-    #
-    #     bb = [min_px, min_py, max_px, max_py]
-    #     _bbox.append(bb, 1)
-    #
-    # bbox = tf.stack(_bbox, 1)
-
-
-    # todo: check
-    # min_px, min_py = tf.reduce_min(tf.where(bm_x)[1]), tf.reduce_min(tf.where(bm_y)[1])
-    # max_px, max_py = tf.reduce_max(tf.where(bm_x)[1]), tf.reduce_max(tf.where(bm_y)[1])

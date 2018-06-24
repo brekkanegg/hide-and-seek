@@ -48,8 +48,7 @@ class GOOGLENET():
                                                    'activation_fn': tf.nn.elu,
                                                    'updates_collections': None},
                                 ):
-                with slim.arg_scope([slim.conv2d, slim.max_pool2d],
-                                    stride=1, padding='SAME'):
+                with slim.arg_scope([slim.max_pool2d], stride=1, padding='SAME'):
 
                     net = slim.conv2d(net, 64, [3, 3], stride=2, scope='Conv2d_1a_3x3') # net = slim.conv2d(net, 64, [7, 7], stride=2, scope='Conv2d_1a_7x7')
                     net = slim.max_pool2d(net, [3, 3], stride=2, scope='MaxPool_2a_3x3')
@@ -252,9 +251,10 @@ class GOOGLENET():
         # Total Loss -- loc_loss_gt
         alpha = self.config.alpha
         beta = self.config.beta
+        gamma = self.config.gamma
 
         # self.tot_loss = alpha * self.cls_loss + beta * self.loc_loss_t1
-        self.tot_loss = alpha * self.cls_loss + beta * self.loc_loss_gt
+        self.tot_loss = alpha * self.cls_loss + beta * self.loc_loss_gt + gamma * self.loc_loss_t1
 
         # Optimizer
         if self.config.opt == 'adam':

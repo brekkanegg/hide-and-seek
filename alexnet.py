@@ -46,7 +46,8 @@ class ALEXNET():
                                     activation_fn=tf.nn.elu, updates_collections=None, is_training=self.is_training):
 
                     # modified alexnet
-                    net = slim.conv2d(net, 64, [3, 3], scope='conv1')  # net = slim.conv2d(net, 64, [11, 11], 4, padding='VALID', scope='conv1')
+                    net = slim.conv2d(net, 64, [3, 3], scope='conv1')
+                    # net = slim.conv2d(net, 64, [11, 11], 4, padding='VALID', scope='conv1')
                     net = slim.batch_norm(net, scope='bn1')
                     net = slim.max_pool2d(net, [3, 3], 2, scope='pool1')
                     net = slim.conv2d(net, 192, [3, 3], scope='conv2') # net = slim.conv2d(net, 192, [5, 5], scope='conv2')
@@ -153,14 +154,13 @@ class ALEXNET():
         self.correct_and_iou_gt = gt_iou_over_50
         self.gt_known_loc_accuracy = tf.reduce_sum(tf.cast(self.correct_and_iou_gt, tf.float32)) / self.config.bs
 
-
         # Total Loss -- loc_loss_gt
         alpha = self.config.alpha
         beta = self.config.beta
+        gamma = self.config.gamma
 
         # self.tot_loss = alpha * self.cls_loss + beta * self.loc_loss_t1
-        self.tot_loss = alpha * self.cls_loss + beta * self.loc_loss_gt
-
+        self.tot_loss = alpha * self.cls_loss + beta * self.loc_loss_gt + gamma * self.loc_loss_t1
 
         # Optimizer
         if self.config.opt == 'adam':

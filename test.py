@@ -5,7 +5,6 @@ import time
 import pprint
 
 from alexnet import ALEXNET
-from alexnetmini import ALEXNETMini
 from googlenet import GOOGLENET
 
 import inputs
@@ -82,8 +81,6 @@ with tf.Session(config=config) as sess:
     # Model
     if FLAGS.model == 'alexnet':
         model = ALEXNET(config=FLAGS, inputs=test_inputs)
-    elif FLAGS.model == 'alexnetmini':
-        model = ALEXNETMini(config=FLAGS, inputs=test_inputs)
 
     elif FLAGS.model == 'googlenet':
         model = GOOGLENET(config=FLAGS, inputs=test_inputs)
