@@ -16,6 +16,8 @@ class ALEXNET():
 
         self.model_name = "AlexNet-has"
 
+        self.ox = tf.placeholder(tf.float32, shape=[None, self.image_size, self.image_size, 3], name='ox')
+
         self.x = tf.placeholder(tf.float32, shape=[None, self.image_size, self.image_size, 3], name='x')
         self.y = tf.placeholder(tf.int64, shape=[None], name='y')
         self.bbox = tf.placeholder(tf.int64, shape=[None, 4])
@@ -35,7 +37,7 @@ class ALEXNET():
 
             with slim.arg_scope([slim.conv2d], #, slim.fully_connected, slim.max_pool2d]
                                 activation_fn=None,
-                                weights_initializer=trunc_normal(0.005),
+                                weights_initializer=tf.contrib.layers.xavier_initializer(),
                                 weights_regularizer=slim.l2_regularizer(0.001),
                                 biases_initializer=tf.constant_initializer(0.1)
                                 ):
@@ -93,7 +95,7 @@ class ALEXNET():
                 label_w = tf.reshape(label_w, [-1, 1024, 1])  # [batch_size, 1024, 1]
 
         conv_resized = tf.reshape(conv_resized,
-                                   [-1, self.image_size * self.image_size, 1024])  # [batch_size, 224*224, 1024]
+                                   [-1, self.image_size * self.image_size, 1024])
 
         classmap = tf.matmul(conv_resized, label_w)
         classmap = tf.reshape(classmap, [-1, self.image_size, self.image_size])
@@ -101,16 +103,21 @@ class ALEXNET():
 
     def build_loss_and_optimizer(self):
 
+        #
         # Classification Loss - SparseSoftmaxCrossEntropyLoss, WeightedSigmoidClassificationLoss
-
+        #
         self.cross_entropy = tf.nn.sparse_softmax_cross_entropy_with_logits(logits=self.logits, labels=self.y)
         self.cross_entropy_loss = tf.reduce_mean(self.cross_entropy)
         self.cls_loss = self.cross_entropy_loss
 
-        corrections = tf.equal(self.y, tf.argmax(self.logits, axis=1))
-        self.cls_accuracy = tf.reduce_sum(tf.cast(corrections, tf.int32)) / tf.shape(self.y)[0]
+        self.pred_class = tf.argmax(self.logits, axis=1)
+
+        self.corrections = tf.equal(self.y, self.pred_class)
+        self.cls_accuracy = tf.reduce_sum(tf.cast(self.corrections, tf.int32)) / tf.shape(self.y)[0]
         # self.accuracy = tf.metrics.accuracy(labels=self.y,
         #                                     predictions=tf.argmax(self.logits, axis=1))[1]
+
+
 
 
         #
@@ -121,49 +128,44 @@ class ALEXNET():
         # top-1 loc,
         pred_class = tf.argmax(self.logits, axis=1)
 
-        self.cam = self.get_classmap(pred_class, self.conv)
+        self.cam_t1 = self.get_classmap(pred_class, self.conv)
+        self.pred_bbox, self.debug = utils.get_bbox_from_cam(self.cam_t1, 0.2)
 
-        # fixme:
-        self.pred_bbox, self.debug = utils.get_bbox_from_cam(self.cam, 0.2)
-        # self.pred_bbox = utils.get_bbox_from_cam(self.cam, 0.2)
+        self.huber_loss_t1 = tf.losses.huber_loss(self.bbox, self.pred_bbox)  # fixme: pred_cls 가 gt_cls 가 아닌 경우 loss 계산 다르게 해야함
+        self.loc_loss_t1 = tf.reduce_mean(self.huber_loss_t1)
 
-
-
-        #############
-        self.loc_loss = tf.reduce_mean(tf.losses.huber_loss(self.bbox, self.pred_bbox))
-
-        self.iou = utils.calc_iou(self.pred_bbox, self.bbox)
-
-        # fixme
-        top_iou_over_50 = tf.greater(self.iou, 0.5)
-        self.correct_and_iou = tf.logical_and(corrections, top_iou_over_50)
-        self.top1_loc_accuracy = tf.reduce_sum(tf.cast(self.correct_and_iou, tf.float32)) / self.config.batch_size
+        self.iou_t1 = utils.calc_iou(self.pred_bbox, self.bbox)
+        t1_iou_over_50 = self.iou_t1 > 0.5
+        self.correct_and_iou_t1 = tf.logical_and(self.corrections, t1_iou_over_50)
+        self.top1_loc_accuracy = tf.reduce_sum(tf.cast(self.correct_and_iou_t1, tf.float32)) / self.config.bs
 
 
-        # gt-known loc
+        # gt-known loc, use this!
         self.cam_gt = self.get_classmap(self.y, self.conv)
-
         self.pred_bbox_gt, self.debug_gt = utils.get_bbox_from_cam(self.cam_gt, 0.2)
 
-        self.loc_loss_gt = tf.reduce_mean(tf.losses.huber_loss(self.bbox, self.pred_bbox_gt))
+        self.huber_loss_gt = tf.losses.huber_loss(self.bbox, self.pred_bbox_gt)
+        self.loc_loss_gt = tf.reduce_mean(self.huber_loss_gt)
 
         self.iou_gt = utils.calc_iou(self.pred_bbox_gt, self.bbox)
 
         gt_iou_over_50 = self.iou_gt > 0.5
-        self.correct_and_iou_gt = tf.logical_and(corrections, gt_iou_over_50)
-        self.gt_known_loc_accuracy = tf.reduce_sum(tf.cast(self.correct_and_iou_gt, tf.float32)) / self.config.batch_size
+        self.correct_and_iou_gt = gt_iou_over_50
+        self.gt_known_loc_accuracy = tf.reduce_sum(tf.cast(self.correct_and_iou_gt, tf.float32)) / self.config.bs
 
 
         # Total Loss -- loc_loss_gt
-        alpha = 0
-        self.tot_loss = self.cls_loss + alpha * self.loc_loss
-        # self.tot_loss = self.cls_loss + alpha * self.loc_loss_gt
+        alpha = self.config.alpha
+        beta = self.config.beta
+
+        # self.tot_loss = alpha * self.cls_loss + beta * self.loc_loss_t1
+        self.tot_loss = alpha * self.cls_loss + beta * self.loc_loss_gt
 
 
         # Optimizer
-        if self.config.optimizer == 'adam':
+        if self.config.opt == 'adam':
             self.optimizer = tf.train.AdamOptimizer(self.learning_rate, beta1=self.config.beta1)
-        elif self.config.optimizer == 'rmsprop':
+        elif self.config.opt == 'rmsprop':
             self.optimizer = tf.train.RMSPropOptimizer(self.learning_rate)
 
         # grad-clipping
@@ -173,54 +175,55 @@ class ALEXNET():
         self.train_op = self.optimizer.apply_gradients(capped_gvs)
 
 
+        cls_gvs = self.optimizer.compute_gradients(self.cls_loss, var_list=var_list)
+        cls_capped_gvs = [(tf.clip_by_value(grad, -5., 5.), var) for grad, var in cls_gvs]
+        self.cls_train_op = self.optimizer.apply_gradients(cls_capped_gvs)
+
+
+
     def merge_summary(self):
+        self.orig_image_sum = tf.summary.image("original_image", self.ox, max_outputs=4)
+
         self.image_sum = tf.summary.image("image", self.x, max_outputs=4)
-        self.cam_sum = tf.summary.image("cam", tf.reshape(self.cam, [-1, self.image_size, self.image_size, 1]), max_outputs=4)
-        self.cam_gt_sum = tf.summary.image("cam_gt", tf.reshape(self.cam_gt, [-1, self.image_size, self.image_size, 1]), max_outputs=4)
-        # self.bbox_sum = tf.summary.image("bbox", self.bbox, max_outputs=4)
-        # self.pbbox_sum = tf.summary.image("pbbox", self.pred_bbox, max_outputs=4)
-        # self.pbbox_gt_sum = tf.summary.image("pbbox_gt", self.pred_bbox_gt, max_outputs=4)
+        self.cam_gt_sum = tf.summary.image("cam_gt", tf.reshape(self.cam_gt, [-1, self.image_size, self.image_size, 1]),
+                                           max_outputs=4)
+
+        # self.cam_t1_sum = tf.summary.image("cam_t1", tf.reshape(self.cam_t1, [-1, self.image_size, self.image_size, 1]),
+        #                                    max_outputs=4)
 
 
         # fixme: transpose..?         gt_bbox = tf.transpose(self.bbox, [1, 0, 3, 2]) / self.image_size
 
-        # fixme: tf.image.draw_bounding_boxes...?????
-        # gt_bbox = self.bbox / self.image_size
-        # p_bbox = self.pred_bbox / self.image_size
+        _bbox = tf.cast(self.bbox / self.image_size, tf.float32)
+        self.gt_bbox = tf.stack([_bbox[:, 1], _bbox[:, 0], _bbox[:, 3], _bbox[:, 2]], 1)
 
-        self.gt_bbox = tf.stack([self.bbox[:, 1], self.bbox[:, 0],
-                            self.bbox[:, 3], self.bbox[:, 2]], 1) / self.image_size
-        self.p_bbox = tf.stack([self.pred_bbox[:, 1], self.pred_bbox[:, 0],
-                           self.pred_bbox[:, 3], self.pred_bbox[:, 2]], 1) / self.image_size
-        self.p_bbox_gt = tf.stack([self.pred_bbox_gt[:, 1], self.pred_bbox_gt[:, 0],
-                              self.pred_bbox_gt[:, 3], self.pred_bbox_gt[:, 2]], 1) / self.image_size
+        _pbbox_gt = tf.cast(self.pred_bbox_gt / self.image_size, tf.float32)
+        self.p_bbox_gt = tf.stack([_pbbox_gt[:, 1], _pbbox_gt[:, 0], _pbbox_gt[:, 3], _pbbox_gt[:, 2]], 1)
+
+        _pbbox_t1 = tf.cast(self.pred_bbox / self.image_size, tf.float32)
+        self.p_bbox_t1 = tf.stack([_pbbox_t1[:, 1], _pbbox_t1[:, 0], _pbbox_t1[:, 3], _pbbox_t1[:, 2]], 1)
 
 
-        # gt_bbox = tf.stack([self.bbox[:, 1], self.bbox[:, 0],
-        #                     self.bbox[:, 3], self.bbox[:, 2]], 1) / self.image_size
-        # p_bbox = tf.stack([self.pred_bbox[:, 1], self.pred_bbox[:, 0],
-        #                    self.pred_bbox[:, 3], self.pred_bbox[:, 2]], 1) / self.image_size
-        # p_bbox_gt = tf.stack([self.pred_bbox_gt[:, 1], self.pred_bbox_gt[:, 0],
-        #                       self.pred_bbox_gt[:, 3], self.pred_bbox_gt[:, 2]], 1) / self.image_size
+        # self._bboxs = tf.stack([self.gt_bbox, self.p_bbox_gt, self.p_bbox_t1], axis=1)
+        self._bboxs = tf.stack([self.gt_bbox, self.p_bbox_gt], axis=1)
 
 
-        self._bboxs = tf.cast(tf.stack([self.gt_bbox], axis=1), tf.float32)
-        self.image_bbox_sum = tf.summary.image("image_and_bbox", tf.image.draw_bounding_boxes(self.x, self._bboxs),
-                                               max_outputs=4)
+        self.orig_image_bbox_sum = tf.summary.image("image_and_bbox",
+                                                    tf.image.draw_bounding_boxes(self.ox, self._bboxs),
+                                                    max_outputs=8)
 
-        # self._bboxs = tf.cast(tf.stack([self.gt_bbox, self.p_bbox], axis=1), tf.float32)
-        # self.image_bbox_sum = tf.summary.image("image_and_bbox", tf.image.draw_bounding_boxes(self.x, self._bboxs),
-        #                                        max_outputs=4)
-        # bboxs_gt = tf.cast(tf.stack([gt_bbox, p_bbox_gt], axis=1), tf.float32)
-        # self.image_bbox_gt_sum = tf.summary.image("image_and_bbox_gt", tf.image.draw_bounding_boxes(self.x, bboxs_gt),
-        #                                           max_outputs=4)
-        #
-        # bboxs_all = tf.cast(tf.stack([self.gt_bbox, self.p_bbox, self.p_bbox_gt], axis=1), tf.float32)
-        # self.image_bbox_all_sum = tf.summary.image("image_and_bbox_all", tf.image.draw_bounding_boxes(self.x, bboxs_all),
-        #                                        max_outputs=4)
+        self.image_bbox_gt_sum = tf.summary.image("image_and_bbox_gt",
+                                                    tf.image.draw_bounding_boxes(self.ox, tf.stack([self.gt_bbox], 1)),
+                                                    max_outputs=8)
+
+        self.cam_gt_bbox_sum = tf.summary.image("cam_gt_and_bbox",
+                                                tf.image.draw_bounding_boxes(
+                                                    tf.reshape(self.cam_gt, [-1, self.image_size, self.image_size, 1]),
+                                                    self._bboxs),
+                                                max_outputs=8)
 
         self.cls_loss_sum = tf.summary.scalar("cls_loss", self.cls_loss)
-        self.loc_loss_sum = tf.summary.scalar("loc_loss", self.loc_loss)
+        self.loc_loss_t1_sum = tf.summary.scalar("loc_loss", self.loc_loss_t1)
         self.loc_loss_gt_sum = tf.summary.scalar("loc_loss_gt", self.loc_loss_gt)
 
         self.tot_loss_sum = tf.summary.scalar("tot_loss", self.tot_loss)
@@ -229,32 +232,21 @@ class ALEXNET():
         self.top1_loc_accuracy_sum = tf.summary.scalar("top1_loc_accuracy", self.top1_loc_accuracy)
         self.gt_knonwn_loc_accuracy_sum = tf.summary.scalar("gt_knonwn_loc_accuracy", self.gt_known_loc_accuracy)
 
-        self.summary_merge = tf.summary.merge([
-                                               self.image_sum, self.cam_sum, self.cam_gt_sum,
-                                               # self.bbox_sum, self.pbbox_sum, self.pbbox_gt_sum,
-                                               self.image_bbox_sum,
-            #                                    self.image_bbox_gt_sum,
-            #                                    self.image_bbox_all_sum,
-                                               self.cls_loss_sum,
-                                               self.loc_loss_sum,
-                                               self.loc_loss_gt_sum,
-                                               self.tot_loss_sum,
-                                               self.cls_accuracy_sum,
-                                               self.top1_loc_accuracy_sum,
-                                               self.gt_knonwn_loc_accuracy_sum]
-                                              )
 
-# original alexnet
-# net = slim.conv2d(net, 64, [11, 11], 4, padding='VALID', scope='conv1')
-# net = slim.batch_norm(net, scope='bn1')
-# net = slim.max_pool2d(net, [3, 3], 2, scope='pool1')
-# net = slim.conv2d(net, 192, [5, 5], scope='conv2')
-# net = slim.batch_norm(net, scope='bn2')
-# net = slim.max_pool2d(net, [3, 3], 2, scope='pool2')
-# net = slim.conv2d(net, 384, [3, 3], scope='conv3')
-# net = slim.batch_norm(net, scope='bn3')
-# net = slim.conv2d(net, 384, [3, 3], scope='conv4')
-# net = slim.batch_norm(net, scope='bn4')
-# net = slim.conv2d(net, 256, [3, 3], scope='conv5')
-# net = slim.batch_norm(net, scope='bn5')
-# net = slim.max_pool2d(net, [3, 3], 2, scope='pool5')
+        self.summary_merge = tf.summary.merge([
+            self.image_sum,
+            self.cam_gt_sum,
+            self.orig_image_bbox_sum,
+            self.image_bbox_gt_sum,
+            self.cam_gt_bbox_sum,
+
+            self.cls_loss_sum,
+            self.loc_loss_t1_sum,
+            self.loc_loss_gt_sum,
+            self.tot_loss_sum,
+
+            self.cls_accuracy_sum,
+            self.top1_loc_accuracy_sum,
+            self.gt_knonwn_loc_accuracy_sum]
+        )
+

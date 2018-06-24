@@ -21,8 +21,8 @@ def get_bbox_from_cam(cam, threshold=0.2):
 
     bm = tf.greater(cam, th)  # expecting binary mask
 
-    bm_x = tf.reduce_any(bm, axis=2)
-    bm_y = tf.reduce_any(bm, axis=1)
+    bm_x = tf.reduce_any(bm, axis=1)
+    bm_y = tf.reduce_any(bm, axis=2)
 
     # fixme: batch 로 받기..?
     min_px = tf.map_fn(lambda x: tf.reduce_min(tf.where(x)[:, 0]), bm_x, dtype=tf.int64)
@@ -35,6 +35,15 @@ def get_bbox_from_cam(cam, threshold=0.2):
     min_py = tf.clip_by_value(min_py, 0, 63)
     max_px = tf.clip_by_value(max_px, 0, 63)
     max_py = tf.clip_by_value(max_py, 0, 63)
+
+    _bbox = [min_px, min_py, max_px, max_py]
+
+    bbox = tf.stack(_bbox, 1)
+
+    return bbox, (min_px, min_py, bm, bm_x, th, cam)
+
+
+
 
     # _bbox = []
     # for bmx, bmy in zip(bm_x, bm_y):
@@ -50,13 +59,3 @@ def get_bbox_from_cam(cam, threshold=0.2):
     # todo: check
     # min_px, min_py = tf.reduce_min(tf.where(bm_x)[1]), tf.reduce_min(tf.where(bm_y)[1])
     # max_px, max_py = tf.reduce_max(tf.where(bm_x)[1]), tf.reduce_max(tf.where(bm_y)[1])
-
-    _bbox = [min_px, min_py, max_px, max_py]
-
-    bbox = tf.stack(_bbox, 1)
-
-    return bbox, (min_px, min_py, bm, bm_x, th, cam)
-
-
-
-

@@ -9,12 +9,13 @@ import re
 # todo: hidden patch
 
 class dataloader_tinyimagenet(object):
-    def __init__(self, batch_size, mode='train'):
+    def __init__(self, batch_size, mode='train', hide_prob=0.5):
 
 
         self.mode = mode
         self.image_size = 64
         self.class_num = 200
+        self.hide_prob = 0.5
 
         if mode == 'train': #or mode == 'control':
             self.x = glob('data/tiny-imagenet-200/train/*/images/*.JPEG')
@@ -50,7 +51,8 @@ class dataloader_tinyimagenet(object):
 
 
             # hide patch
-            temp_bi = [hide_patch(i, patch_num) for i in temp_bi]
+            batch_images_original = np.array(temp_bi)
+            temp_bi = [hide_patch(i, patch_num, self.hide_prob) for i in temp_bi]
 
             batch_images = np.array(temp_bi)
 
@@ -73,19 +75,23 @@ class dataloader_tinyimagenet(object):
         if self.mode == 'val':
             batch_images_dir = self.x[start_pos:start_pos + self.batch_size]
             temp_bi = [np.array(Image.open(_d))  # .resize([self.image_size, self.image_size])
+                       if len(np.array(Image.open(_d)).shape) is 3
+                       else to_rgb2(np.array(Image.open(_d)))
                        for _d in batch_images_dir]
+
             batch_images = np.array(temp_bi)
+            batch_images_original = batch_images
 
             batch_labels = []
             batch_bboxs = []
             for xi in batch_images_dir:
-                eni = re.search(r'images\/(.*?)\.JPEG', xi).group(1).split('_')
+                eni = re.search(r'images\/(.*?)\.JPEG', xi).group(1)
                 yi, bi = self.df.loc[eni + '.JPEG'][1], list(self.df.loc[eni + '.JPEG'][1:])
                 _yi = np.where(self.wnids[0] == yi)[0][0]
                 batch_labels.append(_yi)
                 batch_bboxs.append(bi)
 
-        return batch_images, batch_labels, batch_bboxs
+        return batch_images, batch_labels, batch_bboxs, batch_images_original
 
     def shuffle(self):
         random.shuffle(self.x)
