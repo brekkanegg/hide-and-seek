@@ -5,7 +5,6 @@ import time
 import pprint
 
 from alexnet import ALEXNET
-from alexnetmini import ALEXNETMini
 from googlenet import GOOGLENET
 
 import inputs
