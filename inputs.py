@@ -94,6 +94,7 @@ class dataloader_tinyimagenet(object):
         return batch_images, batch_labels, batch_bboxs, batch_images_original
 
     def shuffle(self):
+        random.seed(331)
         random.shuffle(self.x)
 
 

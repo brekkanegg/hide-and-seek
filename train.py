@@ -20,7 +20,7 @@ flags.DEFINE_integer("cep", 10, "Epoch to train for classification")
 
 
 flags.DEFINE_float("lr", 1e-4, "Learning rate of for optimizer")
-flags.DEFINE_float("alpha", 1, "Balancing hyperparameter of cls_loss")
+flags.DEFINE_float("alpha", 2, "Balancing hyperparameter of cls_loss")
 flags.DEFINE_float("beta", 1, "Balancing hyperparameter of loc_loss")
 
 flags.DEFINE_bool("has", False, "hide patch")
@@ -59,6 +59,7 @@ model_config = {'learning_rate': FLAGS.lr,
                 'hide_patch': FLAGS.has,
                 'cam_threshold': FLAGS.cth,
                 'hide_prob': FLAGS.hp,
+                'cls_train_ep': FLAGS.cep,
                 }
 
 model_dir = ['{}-{}'.format(key, model_config[key]) for key in sorted(model_config.keys())]

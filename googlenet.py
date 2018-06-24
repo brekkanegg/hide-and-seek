@@ -268,6 +268,10 @@ class GOOGLENET():
         capped_gvs = [(tf.clip_by_value(grad, -5., 5.), var) for grad, var in gvs]
         self.train_op = self.optimizer.apply_gradients(capped_gvs)
 
+        cls_gvs = self.optimizer.compute_gradients(self.cls_loss, var_list=var_list)
+        cls_capped_gvs = [(tf.clip_by_value(grad, -5., 5.), var) for grad, var in cls_gvs]
+        self.cls_train_op = self.optimizer.apply_gradients(cls_capped_gvs)
+
     def merge_summary(self):
         self.orig_image_sum = tf.summary.image("original_image", self.ox, max_outputs=4)
 
