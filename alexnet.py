@@ -115,10 +115,6 @@ class ALEXNET():
 
         self.corrections = tf.equal(self.y, self.pred_class)
         self.cls_accuracy = tf.reduce_sum(tf.cast(self.corrections, tf.int32)) / tf.shape(self.y)[0]
-        # self.accuracy = tf.metrics.accuracy(labels=self.y,
-        #                                     predictions=tf.argmax(self.logits, axis=1))[1]
-
-
 
 
         #
@@ -162,6 +158,8 @@ class ALEXNET():
         # self.tot_loss = alpha * self.cls_loss + beta * self.loc_loss_t1
         self.tot_loss = alpha * self.cls_loss + beta * self.loc_loss_gt + gamma * self.loc_loss_t1
 
+
+
         # Optimizer
         if self.config.opt == 'adam':
             self.optimizer = tf.train.AdamOptimizer(self.learning_rate, beta1=self.config.beta1)
@@ -182,11 +180,11 @@ class ALEXNET():
 
 
     def merge_summary(self):
-        self.orig_image_sum = tf.summary.image("original_image", self.ox, max_outputs=4)
+        self.orig_image_sum = tf.summary.image("original_image", self.ox, max_outputs=8)
 
-        self.image_sum = tf.summary.image("image", self.x, max_outputs=4)
+        self.image_sum = tf.summary.image("image", self.x, max_outputs=8)
         self.cam_gt_sum = tf.summary.image("cam_gt", tf.reshape(self.cam_gt, [-1, self.image_size, self.image_size, 1]),
-                                           max_outputs=4)
+                                           max_outputs=8)
 
         # self.cam_t1_sum = tf.summary.image("cam_t1", tf.reshape(self.cam_t1, [-1, self.image_size, self.image_size, 1]),
         #                                    max_outputs=4)

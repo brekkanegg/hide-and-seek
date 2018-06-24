@@ -273,11 +273,11 @@ class GOOGLENET():
         self.cls_train_op = self.optimizer.apply_gradients(cls_capped_gvs)
 
     def merge_summary(self):
-        self.orig_image_sum = tf.summary.image("original_image", self.ox, max_outputs=4)
+        self.orig_image_sum = tf.summary.image("original_image", self.ox, max_outputs=8)
 
-        self.image_sum = tf.summary.image("image", self.x, max_outputs=4)
+        self.image_sum = tf.summary.image("image", self.x, max_outputs=8)
         self.cam_gt_sum = tf.summary.image("cam_gt", tf.reshape(self.cam_gt, [-1, self.image_size, self.image_size, 1]),
-                                           max_outputs=4)
+                                           max_outputs=8)
 
         # self.cam_t1_sum = tf.summary.image("cam_t1", tf.reshape(self.cam_t1, [-1, self.image_size, self.image_size, 1]),
         #                                    max_outputs=4)
@@ -299,17 +299,17 @@ class GOOGLENET():
 
         self.orig_image_bbox_sum = tf.summary.image("image_and_bbox",
                                                     tf.image.draw_bounding_boxes(self.ox, self._bboxs),
-                                                    max_outputs=4)
+                                                    max_outputs=8)
 
         self.image_bbox_gt_sum = tf.summary.image("image_and_bbox_gt",
                                                   tf.image.draw_bounding_boxes(self.ox, tf.stack([self.gt_bbox], 1)),
-                                                  max_outputs=4)
+                                                  max_outputs=8)
 
         self.cam_gt_bbox_sum = tf.summary.image("cam_gt_and_bbox",
                                                 tf.image.draw_bounding_boxes(
                                                     tf.reshape(self.cam_gt, [-1, self.image_size, self.image_size, 1]),
                                                     self._bboxs),
-                                                max_outputs=4)
+                                                max_outputs=8)
 
         self.cls_loss_sum = tf.summary.scalar("cls_loss", self.cls_loss)
         self.loc_loss_t1_sum = tf.summary.scalar("loc_loss", self.loc_loss_t1)

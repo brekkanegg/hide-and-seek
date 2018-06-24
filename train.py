@@ -15,14 +15,14 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'  # ignore bounding box warning
 flags = tf.app.flags
 flags.DEFINE_string("model", "alexnet", "alexnet of googlenet")
 
-flags.DEFINE_integer("epoch", 100, "Epoch to train [25]")
-flags.DEFINE_integer("cep", 10, "Epoch to train for classification")
+flags.DEFINE_integer("epoch", 30, "Epoch to train [25]")
+flags.DEFINE_integer("cep", 0, "Epoch to train for classification")
 
 
 flags.DEFINE_float("lr", 1e-4, "Learning rate of for optimizer")
 flags.DEFINE_float("alpha", 2, "Balancing hyperparameter of cls_loss")
 flags.DEFINE_float("beta", 1, "Balancing hyperparameter of loc_loss_gt")
-flags.DEFINE_float("gamma", 1, "Balancing hyperparameter of loc_loss_t1")
+flags.DEFINE_float("gamma", 0, "Balancing hyperparameter of loc_loss_t1")
 
 
 flags.DEFINE_bool("has", False, "hide patch")
@@ -55,6 +55,7 @@ FLAGS = flags.FLAGS
 model_config = {'learning_rate': FLAGS.lr,
                 'alpha': FLAGS.alpha,
                 'beta': FLAGS.beta,
+                'gamma': FLAGS.gamma,
                 'optimizer': FLAGS.opt,
                 'batch_size': FLAGS.bs,
                 'model': FLAGS.model,
@@ -166,42 +167,6 @@ Initializing a new one...
         if epoch == 40:
             FLAGS.lr *= 1e-1
             print('Learning Rate Decreased to: ', FLAGS.lr)
-        # if epoch == 35:
-        #     FLAGS.lr *= 1e-1
-        #     print('Learning Rate Decreased to: ', FLAGS.learning_rate)
-
-
-
-
-        ### debugging zone ###
-
-        # batch_xs, batch_ys, batch_bxs, batch_oxs = train_inputs.next_batch(64)
-        # #
-        # feed = {model.x: batch_xs, model.y: batch_ys, model.bbox: batch_bxs, model.ox: batch_oxs,
-        #         model.is_training: True, model.learning_rate: FLAGS.lr}
-        #
-        # bb, pbbgt, pbbt1= sess.run([model.gt_bbox, model.p_bbox_gt, model.p_bbox_t1], feed_dict=feed)
-        # print(bb, '\n\n', pbbgt, '\n\n', pbbt1)
-
-
-
-        #
-        # dbs = sess.run(model.summary_merge, feed_dict=feed)
-        # summary_writer.add_summary(dbs, counter)
-
-        # _x, _y, _logits = sess.run([model.x, model.y, model.logits], feed_dict=feed)
-
-        # cam = sess.run(model.cam, feed_dict=feed)
-
-        #
-        # print(bb, '\n', pbb, '\n', pbbgt, '\n', _bbx)
-
-        # debug, debug_gt = sess.run([model.debug, model.debug_gt], feed_dict=feed)
-        # cam, cam_gt = sess.run([model.cam, model.cam_gt], feed_dict=feed)
-        # bbox, pbbox, pbbox_gt = sess.run([model.bbox, model.pred_bbox, model.pred_bbox_gt], feed_dict=feed)
-        # print(bbox, '\n', pbbox, '\n', pbbox_gt)
-
-        ######################
 
         train_inputs.shuffle()  # shuffle
         for idx in range(0, batch_idxs):
@@ -300,11 +265,12 @@ Initializing a new one...
 
                 if val_loc_gt_acc > max_val_loc_gt_acc:
                     max_val_loc_gt_acc = val_loc_gt_acc
-                    saver.save(sess, FLAGS.checkpoint_dir + '/{}.ckpt'.format(model.model_name))
-                    print('Model saved at: {}/{}.ckpt'.format(FLAGS.checkpoint_dir, model.model_name))
 
+                saver.save(sess, FLAGS.checkpoint_dir + '/{}.ckpt'.format(model.model_name))
+                print('Model saved at: {}/{}.ckpt'.format(FLAGS.checkpoint_dir, model.model_name))
                 print('Max Val Cls Acc: {:.4f} Max Val Loc GT Acc: {:.4f} Max Val Loc T1 Acc: {:.4f}'
                       .format(max_val_cls_acc, max_val_loc_gt_acc, max_val_loc_t1_acc))
+
                 pprint.pprint(model_config)
 
 
